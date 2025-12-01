@@ -1,0 +1,64 @@
+.cloudflare-analytics-widget {
+    padding: 12px;
+}
+
+.cloudflare-analytics-widget select {
+    margin-bottom: 1rem;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.analytics-item {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease-in-out;
+}
+
+.analytics-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.analytics-item h4 {
+    margin: 0 0 0.5rem 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.analytics-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #1a1a1a;
+}
+
+.loading {
+    text-align: center;
+    padding: 1rem;
+    color: #666;
+}
+
+.error-message {
+    color: #dc3232;
+    padding: 1rem;
+    background: #ffeaea;
+    border-left: 4px solid #dc3232;
+    margin: 1rem 0;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 782px) {
+    .analytics-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .analytics-item {
+        margin-bottom: 1rem;
+    }
+}
