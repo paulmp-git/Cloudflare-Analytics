@@ -2,20 +2,25 @@
 namespace CloudflareAnalytics\Admin;
 
 use CloudflareAnalytics\Services\Security;
+use CloudflareAnalytics\Services\API;
 
 /**
  * Settings page class
  */
 class Settings {
-    private $security;
-    private $option_group = 'cloudflare_analytics_settings';
-    private $page = 'cloudflare-analytics';
+    private Security $security;
+    private API $api;
+    private string $option_group = 'cloudflare_analytics_settings';
+    private string $page = 'cloudflare-analytics';
     
-    public function __construct(Security $security) {
+    public function __construct(Security $security, API $api) {
         $this->security = $security;
+        $this->api = $api;
         
         add_action('admin_menu', [$this, 'add_settings_menu']);
         add_action('admin_init', [$this, 'initialize_settings']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_settings_assets']);
+        add_action('wp_ajax_cloudflare_test_connection', [$this, 'handle_test_connection']);
     }
     
     /**
@@ -78,8 +83,14 @@ class Settings {
                 <?php
                 settings_fields($this->option_group);
                 do_settings_sections($this->page);
-                submit_button(__('Save Settings', 'cloudflare-analytics'));
                 ?>
+                <p class="submit">
+                    <?php submit_button(esc_html__('Save Settings', 'cloudflare-analytics'), 'primary', 'submit', false); ?>
+                    <button type="button" id="cloudflare-test-connection" class="button button-secondary">
+                        <?php esc_html_e('Test Connection', 'cloudflare-analytics'); ?>
+                    </button>
+                    <span id="connection-test-result" style="margin-left: 10px;"></span>
+                </p>
             </form>
         </div>
         <?php
@@ -88,10 +99,14 @@ class Settings {
     /**
      * Render section description
      */
-    public function render_section_description() {
+    public function render_section_description(): void {
         ?>
         <p>
-            <?php _e('Enter your Cloudflare API credentials below. You can find these in your Cloudflare dashboard.', 'cloudflare-analytics'); ?>
+            <?php esc_html_e('Enter your Cloudflare API credentials below. You can find these in your Cloudflare dashboard.', 'cloudflare-analytics'); ?>
+        </p>
+        <p>
+            <strong><?php esc_html_e('Required Permissions:', 'cloudflare-analytics'); ?></strong>
+            <?php esc_html_e('Your API token needs Zone:Read and Analytics:Read permissions.', 'cloudflare-analytics'); ?>
         </p>
         <?php
     }
@@ -169,10 +184,56 @@ class Settings {
     /**
      * Encrypt API token
      */
-    public function encrypt_api_token($token) {
+    public function encrypt_api_token($token): string {
         if (empty($token) || $token === str_repeat('•', 32)) {
-            return get_option('cloudflare_api_token');
+            return get_option('cloudflare_api_token', '');
         }
         return $this->security->encrypt_data($token);
+    }
+    
+    /**
+     * Handle AJAX connection test
+     */
+    public function handle_test_connection(): void {
+        check_ajax_referer('cloudflare_test_connection_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(esc_html__('Insufficient permissions', 'cloudflare-analytics'));
+        }
+        
+        $result = $this->api->test_connection();
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error($result->get_error_message());
+        }
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Enqueue settings page assets
+     */
+    public function enqueue_settings_assets(string $hook): void {
+        if ('settings_page_cloudflare-analytics' !== $hook) {
+            return;
+        }
+        
+        wp_enqueue_script(
+            'cloudflare-analytics-settings',
+            CLOUDFLARE_ANALYTICS_PLUGIN_URL . 'assets/js/settings.js',
+            ['jquery'],
+            CLOUDFLARE_ANALYTICS_VERSION,
+            true
+        );
+        
+        wp_localize_script('cloudflare-analytics-settings', 'cloudflareSettings', [
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('cloudflare_test_connection_nonce'),
+            'i18n' => [
+                'testing' => esc_html__('Testing connection...', 'cloudflare-analytics'),
+                'success' => esc_html__('Connection successful!', 'cloudflare-analytics'),
+                'error' => esc_html__('Connection failed', 'cloudflare-analytics')
+            ]
+        ]);
     }
 }

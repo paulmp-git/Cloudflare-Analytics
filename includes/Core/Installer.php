@@ -33,9 +33,17 @@ class Installer {
     }
     
     /**
+     * Plugin uninstall (static method for register_uninstall_hook)
+     */
+    public static function uninstall_static(): void {
+        $installer = new self();
+        $installer->uninstall();
+    }
+    
+    /**
      * Plugin uninstall
      */
-    public function uninstall() {
+    public function uninstall(): void {
         global $wpdb;
         
         // Remove options
@@ -67,6 +75,15 @@ class Installer {
         if (is_dir($log_dir)) {
             $this->remove_directory($log_dir);
         }
+        
+        // Clear any scheduled events
+        wp_clear_scheduled_hook('cloudflare_analytics_cache_cleanup');
+        wp_clear_scheduled_hook('cloudflare_refresh_cache');
+        
+        // Clear transients
+        global $wpdb;
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_cf_rate_limit_%'");
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_cf_rate_limit_%'");
     }
     
     /**

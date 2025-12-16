@@ -2,15 +2,18 @@
 namespace CloudflareAnalytics\Admin;
 
 use CloudflareAnalytics\Services\API;
+use CloudflareAnalytics\Services\Security;
 
 /**
  * Dashboard widget class
  */
 class Dashboard {
-    private $api;
+    private API $api;
+    private Security $security;
     
-    public function __construct(API $api) {
+    public function __construct(API $api, Security $security) {
         $this->api = $api;
+        $this->security = $security;
         
         add_action('wp_dashboard_setup', [$this, 'add_dashboard_widget']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
@@ -20,14 +23,21 @@ class Dashboard {
     /**
      * Add dashboard widget
      */
-    public function add_dashboard_widget() {
-        if (current_user_can('manage_options')) {
+    public function add_dashboard_widget(): void {
+        if ($this->can_view_analytics()) {
             wp_add_dashboard_widget(
                 'cloudflare_traffic',
-                __('Cloudflare Traffic Analytics', 'cloudflare-analytics'),
+                esc_html__('Cloudflare Traffic Analytics', 'cloudflare-analytics'),
                 [$this, 'render_widget']
             );
         }
+    }
+    
+    /**
+     * Check if current user can view analytics
+     */
+    private function can_view_analytics(): bool {
+        return current_user_can('manage_cloudflare_analytics') || current_user_can('manage_options');
     }
     
     /**
@@ -56,14 +66,14 @@ class Dashboard {
     /**
      * Handle AJAX request
      */
-    public function handle_ajax_request() {
+    public function handle_ajax_request(): void {
         check_ajax_referer('cloudflare_analytics_nonce', 'nonce');
         
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(__('Insufficient permissions', 'cloudflare-analytics'));
+        if (!$this->can_view_analytics()) {
+            wp_send_json_error(esc_html__('Insufficient permissions', 'cloudflare-analytics'));
         }
         
-        $time_range = isset($_POST['time_range']) ? sanitize_text_field($_POST['time_range']) : '24';
+        $time_range = isset($_POST['time_range']) ? $this->security->sanitize_input($_POST['time_range'], 'text') : '24';
         $analytics_data = $this->api->fetch_analytics($time_range);
         
         if (is_wp_error($analytics_data)) {
@@ -76,8 +86,12 @@ class Dashboard {
     /**
      * Enqueue assets
      */
-    public function enqueue_assets($hook) {
+    public function enqueue_assets(string $hook): void {
         if ('index.php' !== $hook) {
+            return;
+        }
+        
+        if (!$this->can_view_analytics()) {
             return;
         }
         
@@ -101,9 +115,20 @@ class Dashboard {
         wp_localize_script('cloudflare-analytics', 'cloudflareAnalytics', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('cloudflare_analytics_nonce'),
+            'restUrl' => rest_url('cloudflare-analytics/v1/'),
+            'restNonce' => wp_create_nonce('wp_rest'),
             'i18n' => [
-                'error' => __('Error loading analytics data', 'cloudflare-analytics'),
-                'loading' => __('Loading...', 'cloudflare-analytics')
+                'error' => esc_html__('Error loading analytics data', 'cloudflare-analytics'),
+                'loading' => esc_html__('Loading...', 'cloudflare-analytics'),
+                'retry' => esc_html__('Retry', 'cloudflare-analytics'),
+                'uniqueVisitors' => esc_html__('Unique Visitors', 'cloudflare-analytics'),
+                'totalRequests' => esc_html__('Total Requests', 'cloudflare-analytics'),
+                'pageviews' => esc_html__('Pageviews', 'cloudflare-analytics'),
+                'bandwidth' => esc_html__('Bandwidth', 'cloudflare-analytics'),
+                'cachedBandwidth' => esc_html__('Cached', 'cloudflare-analytics'),
+                'cacheRatio' => esc_html__('Cache Ratio', 'cloudflare-analytics'),
+                'threatsBlocked' => esc_html__('Threats Blocked', 'cloudflare-analytics'),
+                'httpsPercentage' => esc_html__('HTTPS Traffic', 'cloudflare-analytics')
             ]
         ]);
     }

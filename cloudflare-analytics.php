@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define Constants
-define('CLOUDFLARE_ANALYTICS_VERSION', '1.2');
+define('CLOUDFLARE_ANALYTICS_VERSION', '1.3');
 define('CLOUDFLARE_ANALYTICS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('CLOUDFLARE_ANALYTICS_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -48,8 +48,18 @@ register_deactivation_hook(__FILE__, function() {
     $installer->deactivate();
 });
 
+// Uninstall Hook - uses a static method for proper cleanup
+register_uninstall_hook(__FILE__, ['CloudflareAnalytics\Core\Installer', 'uninstall_static']);
+
 // Initialize Plugin
 add_action('plugins_loaded', function () {
-    $plugin = new \CloudflareAnalytics\Core\Plugin();
+    // Load text domain for translations
+    load_plugin_textdomain(
+        'cloudflare-analytics',
+        false,
+        dirname(plugin_basename(__FILE__)) . '/languages'
+    );
+    
+    $plugin = \CloudflareAnalytics\Core\Plugin::get_instance();
     $plugin->init();
 });
